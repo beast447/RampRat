@@ -78,8 +78,8 @@ DWORD WINAPI pushbackLoop(LPVOID) {
         // update heading based on steering angle
         pos.heading += steerAngle * radToDeg * 0.1; // small increment
 
-        SIMCONNECT_DATA_INITPOSITION newPos = {pos.lat, pos.lon, pos.alt, 0, 0, pos.heading, 1, 0};
-        SimConnect_SetDataOnSimObject(hSimConnect, SIMCONNECT_DATA_INITPOSITION, SIMCONNECT_OBJECT_ID_USER, 0, 0,
+        PlanePosition newPos = {pos.lat, pos.lon, pos.alt, pos.heading};
+        SimConnect_SetDataOnSimObject(hSimConnect, DEFINE_POSITION, SIMCONNECT_OBJECT_ID_USER, 0, 0,
             sizeof(newPos), &newPos);
 
         SimConnect_CallDispatch(hSimConnect, dispatchProc, NULL);
