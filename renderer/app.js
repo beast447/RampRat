@@ -37,8 +37,9 @@ window.onload = () => {
   };
   const speedSlider = document.getElementById('slider-speed');
   const speedValue = document.getElementById('speed-value');
+  speedValue.textContent = `${speedSlider.value} m/s`;
   speedSlider.oninput = () => {
-    speedValue.textContent = `${speedSlider.value} m/tick`;
+    speedValue.textContent = `${speedSlider.value} m/s`;
     updateSpeed(speedSlider.value);
   };
   document.getElementById('btn-left').onclick = () => {

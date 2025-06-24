@@ -32,7 +32,13 @@ app.whenReady().then(() => {
 });
 ```
 
-The bridge reads lines like `pushback`, `pushback-stop`, `angle:<radians>` and `speed:<meters>` from its standard input. When `pushback` is received, it freezes the aircraft and repeatedly repositions it to simulate a tug. `angle:` adjusts the steering angle while the loop runs, `speed:` controls how many meters the plane moves on each tick, and `pushback-stop` ends the sequence and unfreezes the plane. The implementation lives in `main.cpp`.
+The bridge reads lines like `pushback`, `pushback-stop`, `angle:<radians>` and
+`speed:<meters per second>` from its standard input. When `pushback` is
+received, it freezes the aircraft and repeatedly repositions it to simulate a
+tug. `angle:` adjusts the steering angle while the loop runs, `speed:` controls
+how fast the aircraft moves (meters per second) during the pushback, and
+`pushback-stop` ends the sequence and unfreezes the plane. The implementation
+lives in `main.cpp`.
 
 ## Building the bridge from source
 
