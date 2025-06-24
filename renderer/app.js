@@ -1,4 +1,5 @@
 let isPushbackActive = false;
+let isBaggageActive = false;
 
 function togglePushback() {
   const button = document.getElementById('pushbackBtn');
@@ -25,10 +26,25 @@ function updateSteering(value) {
 function updateSpeed(value) {
   window.api.sendCommand(`speed:${parseFloat(value).toFixed(2)}`);
 }
+
+function toggleBaggage() {
+  const button = document.getElementById('baggageBtn');
+  if (!isBaggageActive) {
+    window.api.sendCommand('baggage-start');
+    button.textContent = 'Stop Baggage';
+    isBaggageActive = true;
+  } else {
+    window.api.sendCommand('baggage-stop');
+    button.textContent = 'Call Baggage';
+    isBaggageActive = false;
+  }
+}
 // ...existing code...
 
 window.onload = () => {
   document.getElementById('pushbackBtn').onclick = togglePushback;
+  const baggageBtn = document.getElementById('baggageBtn');
+  if (baggageBtn) baggageBtn.onclick = toggleBaggage;
   const slider = document.getElementById('slider-angle');
   const angleValue = document.getElementById('angle-value');
   slider.oninput = (e) => {

@@ -3,15 +3,18 @@
 #include <stdio.h>
 #include "SimConnect.h"
 #include <math.h>
+#include <string.h>
 
 enum DATA_DEFINE_ID {
     DEFINE_FREEZE_LATLON,
     DEFINE_FREEZE_ALT,
-    DEFINE_POSITION
+    DEFINE_POSITION,
+    DEFINE_TITLE
 };
 
 enum DATA_REQUEST_ID {
-    REQUEST_POSITION
+    REQUEST_POSITION,
+    REQUEST_TITLE
 };
 
 struct PlanePosition {
@@ -19,6 +22,10 @@ struct PlanePosition {
     double lon;
     double alt;
     double heading;
+};
+
+enum EVENT_ID {
+    EVENT_BAGGAGE
 };
 
 HANDLE hSimConnect = NULL;
@@ -29,6 +36,8 @@ volatile float pushbackSpeed = 0.5f; // meters per second
 
 PlanePosition currentPos{};
 volatile bool posReceived = false;
+char aircraftTitle[256] = {0};
+volatile bool titleReceived = false;
 
 void CALLBACK dispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContext) {
     if (pData->dwID == SIMCONNECT_RECV_ID_SIMOBJECT_DATA) {
@@ -37,6 +46,11 @@ void CALLBACK dispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContext)
             PlanePosition* p = (PlanePosition*)&obj->dwData;
             currentPos = *p;
             posReceived = true;
+        } else if (obj->dwRequestID == REQUEST_TITLE) {
+            const char* title = (const char*)&obj->dwData;
+            strncpy(aircraftTitle, title, sizeof(aircraftTitle) - 1);
+            aircraftTitle[sizeof(aircraftTitle) - 1] = '\0';
+            titleReceived = true;
         }
     }
 }
@@ -52,6 +66,16 @@ PlanePosition requestCurrentPosition() {
     }
     pos = currentPos;
     return pos;
+}
+
+void requestAircraftTitle() {
+    titleReceived = false;
+    SimConnect_RequestDataOnSimObject(hSimConnect, REQUEST_TITLE, DEFINE_TITLE,
+        SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD_ONCE);
+    while (!titleReceived) {
+        SimConnect_CallDispatch(hSimConnect, dispatchProc, NULL);
+        Sleep(10);
+    }
 }
 
 DWORD WINAPI pushbackLoop(LPVOID) {
@@ -114,6 +138,9 @@ void runBridge() {
     SimConnect_AddToDataDefinition(hSimConnect, DEFINE_POSITION, "PLANE LONGITUDE", "degrees");
     SimConnect_AddToDataDefinition(hSimConnect, DEFINE_POSITION, "PLANE ALTITUDE", "feet");
     SimConnect_AddToDataDefinition(hSimConnect, DEFINE_POSITION, "PLANE HEADING DEGREES TRUE", "degrees");
+    SimConnect_AddToDataDefinition(hSimConnect, DEFINE_TITLE, "TITLE", NULL, SIMCONNECT_DATATYPE_STRING256);
+
+    SimConnect_MapClientEventToSimEvent(hSimConnect, EVENT_BAGGAGE, "TOGGLE_AIRPORT_GROUND_SERVICES");
 
     char input[128];
     while (fgets(input, sizeof(input), stdin)) {
@@ -140,6 +167,14 @@ void runBridge() {
         } else if (strncmp(input, "speed:", 6) == 0) {
             pushbackSpeed = strtof(input + 6, NULL);
             printf("Set pushback speed: %.2f m/s\n", pushbackSpeed);
+            fflush(stdout);
+        } else if (strncmp(input, "baggage-start", 13) == 0) {
+            requestAircraftTitle();
+            printf("Baggage service requested for %s\n", aircraftTitle);
+            fflush(stdout);
+            SimConnect_TransmitClientEvent(hSimConnect, SIMCONNECT_OBJECT_ID_USER, EVENT_BAGGAGE, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+        } else if (strncmp(input, "baggage-stop", 12) == 0) {
+            printf("Baggage service stopped\n");
             fflush(stdout);
         }
     }

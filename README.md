@@ -37,8 +37,9 @@ The bridge reads lines like `pushback`, `pushback-stop`, `angle:<radians>` and
 received, it freezes the aircraft and repeatedly repositions it to simulate a
 tug. `angle:` adjusts the steering angle while the loop runs, `speed:` controls
 how fast the aircraft moves (meters per second) during the pushback, and
-`pushback-stop` ends the sequence and unfreezes the plane. The implementation
-lives in `main.cpp`.
+`pushback-stop` ends the sequence and unfreezes the plane. You can also send
+`baggage-start` and `baggage-stop` to trigger the baggage trucks. The
+implementation lives in `main.cpp`.
 
 ## Building the bridge from source
 
