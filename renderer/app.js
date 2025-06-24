@@ -24,7 +24,7 @@ function updateSteering(value) {
 // ...existing code...
 
 window.onload = () => {
-  document.getElementById('btn-pushback').onclick = togglePushback;
+  document.getElementById('pushbackBtn').onclick = togglePushback;
   const slider = document.getElementById('slider-angle');
   const angleValue = document.getElementById('angle-value');
   slider.oninput = (e) => {
