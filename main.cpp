@@ -25,7 +25,7 @@ HANDLE hSimConnect = NULL;
 HANDLE pushbackThread = NULL;
 volatile bool pushing = false;
 volatile float steerAngle = 0.0f; // radians
-volatile float stepSize = 0.25f; // meters per tick
+volatile float pushbackSpeed = 0.5f; // meters per second
 
 PlanePosition currentPos{};
 volatile bool posReceived = false;
@@ -64,12 +64,17 @@ DWORD WINAPI pushbackLoop(LPVOID) {
     const double degToRad = 3.141592653589793 / 180.0;
     const double radToDeg = 180.0 / 3.141592653589793;
 
+    DWORD lastTick = GetTickCount();
     while (pushing) {
+        DWORD now = GetTickCount();
+        double deltaTime = (now - lastTick) / 1000.0; // seconds
+        lastTick = now;
+
         // convert meters to degrees at current latitude
         double metersPerDegLat = 111111.0;
         double metersPerDegLon = 111111.0 * cos(pos.lat * degToRad);
 
-        double step = stepSize; // meters per tick
+        double step = pushbackSpeed * deltaTime; // meters this tick
 
         // move backwards along current heading
         double headingRad = (pos.heading + 180.0) * degToRad;
@@ -84,7 +89,7 @@ DWORD WINAPI pushbackLoop(LPVOID) {
             sizeof(newPos), &newPos);
 
         SimConnect_CallDispatch(hSimConnect, dispatchProc, NULL);
-        Sleep(50);
+        Sleep(20);
     }
 
     freeze = 0;
@@ -133,8 +138,8 @@ void runBridge() {
             printf("Set steering angle: %.2f radians\n", steerAngle);
             fflush(stdout);
         } else if (strncmp(input, "speed:", 6) == 0) {
-            stepSize = strtof(input + 6, NULL);
-            printf("Set pushback speed: %.2f m/tick\n", stepSize);
+            pushbackSpeed = strtof(input + 6, NULL);
+            printf("Set pushback speed: %.2f m/s\n", pushbackSpeed);
             fflush(stdout);
         }
     }
