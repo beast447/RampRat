@@ -1,0 +1,16 @@
+
+{
+  "name": "gsx-lite",
+  "version": "0.1.0",
+  "description": "GSX Competitor for MSFS using Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "YourName",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0"
+  }
+}
