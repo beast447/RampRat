@@ -21,6 +21,10 @@ function updateSteering(value) {
   const radians = (parseFloat(value) * Math.PI) / 180;
   window.api.sendCommand(`angle:${radians.toFixed(4)}`);
 }
+
+function updateSpeed(value) {
+  window.api.sendCommand(`speed:${parseFloat(value).toFixed(2)}`);
+}
 // ...existing code...
 
 window.onload = () => {
@@ -30,6 +34,12 @@ window.onload = () => {
   slider.oninput = (e) => {
     angleValue.textContent = `${slider.value}°`;
     updateSteering(slider.value);
+  };
+  const speedSlider = document.getElementById('slider-speed');
+  const speedValue = document.getElementById('speed-value');
+  speedSlider.oninput = () => {
+    speedValue.textContent = `${speedSlider.value} m/tick`;
+    updateSpeed(speedSlider.value);
   };
   document.getElementById('btn-left').onclick = () => {
     slider.value = -45;
