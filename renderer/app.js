@@ -31,7 +31,19 @@ window.onload = () => {
     angleValue.textContent = `${slider.value}°`;
     updateSteering(slider.value);
   };
-  document.getElementById('btn-left').onclick = () => window.api.sendCommand('state:1');
-  document.getElementById('btn-straight').onclick = () => window.api.sendCommand('state:0');
-  document.getElementById('btn-right').onclick = () => window.api.sendCommand('state:2');
+  document.getElementById('btn-left').onclick = () => {
+    slider.value = -45;
+    angleValue.textContent = '-45°';
+    updateSteering(-45);
+  };
+  document.getElementById('btn-straight').onclick = () => {
+    slider.value = 0;
+    angleValue.textContent = '0°';
+    updateSteering(0);
+  };
+  document.getElementById('btn-right').onclick = () => {
+    slider.value = 45;
+    angleValue.textContent = '45°';
+    updateSteering(45);
+  };
 };
