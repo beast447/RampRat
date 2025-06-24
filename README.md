@@ -32,7 +32,7 @@ app.whenReady().then(() => {
 });
 ```
 
-The bridge reads lines like `pushback`, `angle:<radians>` and `state:<value>` from its standard input and calls the corresponding SimConnect functions. The implementation lives in `main.cpp`.
+The bridge reads lines like `pushback`, `pushback-stop` and `angle:<radians>` from its standard input. When `pushback` is received, it freezes the aircraft and repeatedly repositions it to simulate a tug. `angle:` adjusts the steering angle while the loop runs, and `pushback-stop` ends the sequence and unfreezes the plane. The implementation lives in `main.cpp`.
 
 ## Building the bridge from source
 

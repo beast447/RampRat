@@ -2,61 +2,148 @@
 #include <tchar.h>
 #include <stdio.h>
 #include "SimConnect.h"
-
-enum EVENT_ID {
-    EVENT_PUSHBACK
-};
+#include <math.h>
 
 enum DATA_DEFINE_ID {
-    DEFINE_PUSHBACK_ANGLE,
-    DEFINE_PUSHBACK_STATE
+    DEFINE_FREEZE_LATLON,
+    DEFINE_FREEZE_ALT,
+    DEFINE_POSITION
+};
+
+enum DATA_REQUEST_ID {
+    REQUEST_POSITION
+};
+
+struct PlanePosition {
+    double lat;
+    double lon;
+    double alt;
+    double heading;
 };
 
 HANDLE hSimConnect = NULL;
+HANDLE pushbackThread = NULL;
+volatile bool pushing = false;
+volatile float steerAngle = 0.0f; // radians
 
-void setupSimConnect() {
-    if (SUCCEEDED(SimConnect_Open(&hSimConnect, "GSX Lite Bridge", NULL, 0, 0, 0))) {
-        printf("Connected to MSFS 2024\n");
-        fflush(stdout);
+PlanePosition currentPos{};
+volatile bool posReceived = false;
 
-        // Map pushback toggle
-        SimConnect_MapClientEventToSimEvent(hSimConnect, EVENT_PUSHBACK, "TOGGLE_PUSHBACK");
-
-        // Add data definitions for pushback control
-        SimConnect_AddToDataDefinition(hSimConnect, DEFINE_PUSHBACK_ANGLE, "PUSHBACK ANGLE", "radians");
-        SimConnect_AddToDataDefinition(hSimConnect, DEFINE_PUSHBACK_STATE, "PUSHBACK STATE:0", "number");
-
-        char input[128];
-        while (fgets(input, sizeof(input), stdin)) {
-            if (strncmp(input, "pushback", 8) == 0) {
-                printf("Sending Pushback Command...\n");
-                fflush(stdout);
-                SimConnect_TransmitClientEvent(hSimConnect, SIMCONNECT_OBJECT_ID_USER, EVENT_PUSHBACK, 0,
-                    SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
-            }
-            else if (strncmp(input, "angle:", 6) == 0) {
-                float angle = strtof(input + 6, NULL); // angle in radians
-                printf("Setting tug angle: %.2f radians\n", angle);
-                fflush(stdout);
-                SimConnect_SetDataOnSimObject(hSimConnect, DEFINE_PUSHBACK_ANGLE, SIMCONNECT_OBJECT_ID_USER, 0, 0,
-                    sizeof(float), &angle);
-            }
-            else if (strncmp(input, "state:", 6) == 0) {
-                int direction = atoi(input + 6); // 0 = straight, 1 = left, 2 = right
-                printf("Setting pushback direction: %d\n", direction);
-                fflush(stdout);
-                SimConnect_SetDataOnSimObject(hSimConnect, DEFINE_PUSHBACK_STATE, SIMCONNECT_OBJECT_ID_USER, 0, 0,
-                    sizeof(int), &direction);
-            }
+void CALLBACK dispatchProc(SIMCONNECT_RECV* pData, DWORD cbData, void* pContext) {
+    if (pData->dwID == SIMCONNECT_RECV_ID_SIMOBJECT_DATA) {
+        auto* obj = (SIMCONNECT_RECV_SIMOBJECT_DATA*)pData;
+        if (obj->dwRequestID == REQUEST_POSITION) {
+            PlanePosition* p = (PlanePosition*)&obj->dwData;
+            currentPos = *p;
+            posReceived = true;
         }
-
-        SimConnect_Close(hSimConnect);
-    } else {
-        printf("Failed to connect to MSFS\n");
     }
 }
 
+PlanePosition requestCurrentPosition() {
+    PlanePosition pos{};
+    posReceived = false;
+    SimConnect_RequestDataOnSimObject(hSimConnect, REQUEST_POSITION, DEFINE_POSITION, SIMCONNECT_OBJECT_ID_USER,
+        SIMCONNECT_PERIOD_ONCE);
+    while (!posReceived) {
+        SimConnect_CallDispatch(hSimConnect, dispatchProc, NULL);
+        Sleep(10);
+    }
+    pos = currentPos;
+    return pos;
+}
+
+DWORD WINAPI pushbackLoop(LPVOID) {
+    PlanePosition pos = requestCurrentPosition();
+
+    int freeze = 1;
+    SimConnect_SetDataOnSimObject(hSimConnect, DEFINE_FREEZE_LATLON, SIMCONNECT_OBJECT_ID_USER, 0, 0, sizeof(int), &freeze);
+    SimConnect_SetDataOnSimObject(hSimConnect, DEFINE_FREEZE_ALT, SIMCONNECT_OBJECT_ID_USER, 0, 0, sizeof(int), &freeze);
+
+    const double degToRad = 3.141592653589793 / 180.0;
+    const double radToDeg = 180.0 / 3.141592653589793;
+
+    while (pushing) {
+        // convert meters to degrees at current latitude
+        double metersPerDegLat = 111111.0;
+        double metersPerDegLon = 111111.0 * cos(pos.lat * degToRad);
+
+        double step = 0.25; // meters per tick
+
+        // move backwards along current heading
+        double headingRad = (pos.heading + 180.0) * degToRad;
+        pos.lat += (step * cos(headingRad)) / metersPerDegLat;
+        pos.lon += (step * sin(headingRad)) / metersPerDegLon;
+
+        // update heading based on steering angle
+        pos.heading += steerAngle * radToDeg * 0.1; // small increment
+
+        SIMCONNECT_DATA_INITPOSITION newPos = {pos.lat, pos.lon, pos.alt, 0, 0, pos.heading, 1, 0};
+        SimConnect_SetDataOnSimObject(hSimConnect, SIMCONNECT_DATA_INITPOSITION, SIMCONNECT_OBJECT_ID_USER, 0, 0,
+            sizeof(newPos), &newPos);
+
+        SimConnect_CallDispatch(hSimConnect, dispatchProc, NULL);
+        Sleep(50);
+    }
+
+    freeze = 0;
+    SimConnect_SetDataOnSimObject(hSimConnect, DEFINE_FREEZE_LATLON, SIMCONNECT_OBJECT_ID_USER, 0, 0, sizeof(int), &freeze);
+    SimConnect_SetDataOnSimObject(hSimConnect, DEFINE_FREEZE_ALT, SIMCONNECT_OBJECT_ID_USER, 0, 0, sizeof(int), &freeze);
+
+    return 0;
+}
+
+void runBridge() {
+    if (FAILED(SimConnect_Open(&hSimConnect, "GSX Lite Bridge", NULL, 0, 0, 0))) {
+        printf("Failed to connect to MSFS\n");
+        return;
+    }
+
+    printf("Connected to MSFS 2024\n");
+    fflush(stdout);
+
+    SimConnect_AddToDataDefinition(hSimConnect, DEFINE_FREEZE_LATLON, "FREEZE LATITUDE LONGITUDE", "Bool");
+    SimConnect_AddToDataDefinition(hSimConnect, DEFINE_FREEZE_ALT, "FREEZE ALTITUDE", "Bool");
+    SimConnect_AddToDataDefinition(hSimConnect, DEFINE_POSITION, "PLANE LATITUDE", "degrees");
+    SimConnect_AddToDataDefinition(hSimConnect, DEFINE_POSITION, "PLANE LONGITUDE", "degrees");
+    SimConnect_AddToDataDefinition(hSimConnect, DEFINE_POSITION, "PLANE ALTITUDE", "feet");
+    SimConnect_AddToDataDefinition(hSimConnect, DEFINE_POSITION, "PLANE HEADING DEGREES TRUE", "degrees");
+
+    char input[128];
+    while (fgets(input, sizeof(input), stdin)) {
+        if (strncmp(input, "pushback-stop", 13) == 0) {
+            if (pushing) {
+                pushing = false;
+                WaitForSingleObject(pushbackThread, INFINITE);
+                CloseHandle(pushbackThread);
+                pushbackThread = NULL;
+                printf("Pushback stopped\n");
+                fflush(stdout);
+            }
+        } else if (strncmp(input, "pushback", 8) == 0) {
+            if (!pushing) {
+                pushing = true;
+                pushbackThread = CreateThread(NULL, 0, pushbackLoop, NULL, 0, NULL);
+                printf("Pushback started\n");
+                fflush(stdout);
+            }
+        } else if (strncmp(input, "angle:", 6) == 0) {
+            steerAngle = strtof(input + 6, NULL);
+            printf("Set steering angle: %.2f radians\n", steerAngle);
+            fflush(stdout);
+        }
+    }
+
+    if (pushing) {
+        pushing = false;
+        WaitForSingleObject(pushbackThread, INFINITE);
+        CloseHandle(pushbackThread);
+    }
+
+    SimConnect_Close(hSimConnect);
+}
+
 int main() {
-    setupSimConnect();
+    runBridge();
     return 0;
 }
