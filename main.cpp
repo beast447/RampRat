@@ -140,7 +140,9 @@ void runBridge() {
     SimConnect_AddToDataDefinition(hSimConnect, DEFINE_POSITION, "PLANE HEADING DEGREES TRUE", "degrees");
     SimConnect_AddToDataDefinition(hSimConnect, DEFINE_TITLE, "TITLE", NULL, SIMCONNECT_DATATYPE_STRING256);
 
-    SimConnect_MapClientEventToSimEvent(hSimConnect, EVENT_BAGGAGE, "TOGGLE_AIRPORT_GROUND_SERVICES");
+    // Use the dedicated ground service request event. The dwData parameter of 3
+    // specifically requests baggage handling trucks.
+    SimConnect_MapClientEventToSimEvent(hSimConnect, EVENT_BAGGAGE, "GROUND_SERVICES_REQUEST");
 
     char input[128];
     while (fgets(input, sizeof(input), stdin)) {
@@ -172,7 +174,9 @@ void runBridge() {
             requestAircraftTitle();
             printf("Baggage service requested for %s\n", aircraftTitle);
             fflush(stdout);
-            SimConnect_TransmitClientEvent(hSimConnect, SIMCONNECT_OBJECT_ID_USER, EVENT_BAGGAGE, 0, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+            // Parameter 3 triggers the baggage service according to the MSFS
+            // ground service request definitions.
+            SimConnect_TransmitClientEvent(hSimConnect, SIMCONNECT_OBJECT_ID_USER, EVENT_BAGGAGE, 3, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
         } else if (strncmp(input, "baggage-stop", 12) == 0) {
             printf("Baggage service stopped\n");
             fflush(stdout);
