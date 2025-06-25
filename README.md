@@ -38,8 +38,9 @@ received, it freezes the aircraft and repeatedly repositions it to simulate a
 tug. `angle:` adjusts the steering angle while the loop runs, `speed:` controls
 how fast the aircraft moves (meters per second) during the pushback, and
 `pushback-stop` ends the sequence and unfreezes the plane. You can also send
-`baggage-start` and `baggage-stop` to trigger the baggage trucks. The
-implementation lives in `main.cpp`.
+`baggage-start` and `baggage-stop` to trigger the baggage trucks. These
+commands use the `GROUND_SERVICES_REQUEST` SimConnect event with a parameter of
+`3` to request baggage handling. The implementation lives in `main.cpp`.
 
 ## Building the bridge from source
 
